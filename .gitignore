@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+env/
+.env
+
+# Output files
+output/
+*.mp4
+*.mp3
+*.pptx
+*.png
+*.jpg
+final_videoTEMP_MPY_wvf_snd.mp3e__
+
+# Logs
+error.log
+*.log
+
+# IDEs
+.vscode/
+.idea/
