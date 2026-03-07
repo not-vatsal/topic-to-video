@@ -1,3 +1,5 @@
+import os
+os.environ["KIVY_VIDEO"] = "ffpyplayer"
 import threading
 import subprocess
 from kivy.app import App
@@ -5,6 +7,7 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
+from kivy.uix.videoplayer import VideoPlayer
 from kivy.clock import mainthread
 
 class VideoGenUI(BoxLayout):
@@ -23,6 +26,11 @@ class VideoGenUI(BoxLayout):
         
         self.status_label = Label(text="Ready.", size_hint_y=None, height=50)
         self.add_widget(self.status_label)
+
+        self.video_player = VideoPlayer(options={'allow_stretch': True})
+        self.video_player.size_hint_y = 0.001  # Hide initially
+        self.video_player.opacity = 0
+        self.add_widget(self.video_player)
 
     def generate_video(self, instance):
         topic = self.topic_input.text.strip()
@@ -65,6 +73,15 @@ class VideoGenUI(BoxLayout):
         self.status_label.text = message
         self.gen_button.disabled = False
         self.topic_input.text = ""
+        
+        if "✅" in message:
+            import os
+            video_path = os.path.abspath(os.path.join("output", "final_video.mp4"))
+            if os.path.exists(video_path):
+                self.video_player.source = video_path
+                self.video_player.size_hint_y = 1  # Make visible
+                self.video_player.opacity = 1
+                self.video_player.state = 'play'
 
 class VideoGenApp(App):
     def build(self):

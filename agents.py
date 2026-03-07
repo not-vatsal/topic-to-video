@@ -1,12 +1,12 @@
 from crewai import Agent
-from config import get_perplexity_llm
-from tools import PerplexitySearchTool, PPTXGeneratorTool, SlideToImageTool, TextToSpeechTool, VideoCompilerTool
+from config import get_google_llm
+from tools import GoogleSearchTool, PPTXGeneratorTool, SlideToImageTool, TextToSpeechTool, VideoCompilerTool
 
 # Initialize LLM
-llm = get_perplexity_llm()
+llm = get_google_llm()
 
 # Tools
-search_tool = PerplexitySearchTool()
+search_tool = GoogleSearchTool()
 pptx_tool = PPTXGeneratorTool()
 slide_to_image_tool = SlideToImageTool()
 tts_tool = TextToSpeechTool()

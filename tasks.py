@@ -8,8 +8,9 @@ def create_tasks(researcher, qa_agent, scriptwriter, topic):
     )
     
     qa_task = Task(
-        description="""
-        Review the research findings for accuracy and credibility.
+        description=f"""
+        Review the research findings regarding the topic '{topic}' for accuracy and credibility.
+        IMPORTANT: Your output MUST be strictly related to the topic '{topic}'. Do not include unrelated information.
         
         Tasks:
         1. Identify key facts and claims in the research

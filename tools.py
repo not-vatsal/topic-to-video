@@ -13,29 +13,35 @@ from crewai.tools import BaseTool
 from pydantic import Field
 from typing import ClassVar, Dict, Any
 
-class PerplexitySearchTool(BaseTool):
-    name: str = "Perplexity Search"
-    description: str = "Search the web using Perplexity API for detailed information."
+class GoogleSearchTool(BaseTool):
+    name: str = "Google Search"
+    description: str = "Search the web using Google Search via Serper API for detailed information."
 
     def _run(self, query: str) -> str:
-        url = "https://api.perplexity.ai/chat/completions"
-        payload = {
-            "model": "sonar-pro",
-            "messages": [
-                {"role": "system", "content": "You are a helpful research assistant. Provide detailed, accurate information."},
-                {"role": "user", "content": query}
-            ]
-        }
+        url = "https://google.serper.dev/search"
+        payload = json.dumps({
+            "q": query,
+            "num": 5  # Top 5 results
+        })
         headers = {
-            "Authorization": f"Bearer {os.getenv('PERPLEXITY_API_KEY')}",
-            "Content-Type": "application/json"
+            'X-API-KEY': os.getenv('SERPER_API_KEY'),
+            'Content-Type': 'application/json'
         }
         try:
-            response = requests.post(url, json=payload, headers=headers)
+            response = requests.request("POST", url, headers=headers, data=payload)
             response.raise_for_status()
-            return response.json()['choices'][0]['message']['content']
+            results = response.json().get('organic', [])
+            
+            # Format the output for the agent nicely
+            formatted_results = f"Search Results for '{query}':\n\n"
+            for result in results:
+                formatted_results += f"Title: {result.get('title')}\n"
+                formatted_results += f"Snippet: {result.get('snippet')}\n"
+                formatted_results += f"Link: {result.get('link')}\n\n"
+                
+            return formatted_results if results else "No significant results found."
         except Exception as e:
-            return f"Error searching Perplexity: {e}"
+            return f"Error searching Google via Serper: {e}"
 
 class PPTXGeneratorTool(BaseTool):
     name: str = "PPTX Generator"
