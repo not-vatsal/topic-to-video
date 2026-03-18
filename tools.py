@@ -1,17 +1,21 @@
 import os
 import json
+import base64
 import requests
+import concurrent.futures
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN
 from pptx.dml.color import RGBColor
 from pptx.enum.dml import MSO_THEME_COLOR
-from gtts import gTTS
 import comtypes.client
 from moviepy import ImageClip, AudioFileClip, concatenate_videoclips
 from crewai.tools import BaseTool
 from pydantic import Field
 from typing import ClassVar, Dict, Any
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class GoogleSearchTool(BaseTool):
     name: str = "Google Search"
@@ -404,7 +408,48 @@ class SlideToImageTool(BaseTool):
 
 class TextToSpeechTool(BaseTool):
     name: str = "Text to Speech"
-    description: str = "Converts text to speech audio files."
+    description: str = "Converts text to speech audio files using Sarvam AI bulbul:v2."
+
+    def _synthesise_one(self, text: str, out_path: str) -> str:
+        """Call Sarvam AI TTS for a single chunk and save as .wav"""
+        api_key = os.getenv("SARVAM_API")
+        url = "https://api.sarvam.ai/text-to-speech"
+        headers = {
+            "api-subscription-key": api_key,
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "inputs": [text[:1500]],          # Sarvam limit: 1500 chars
+            "target_language_code": "en-IN",
+            "speaker": "anushka",
+            "model": "bulbul:v2",
+            "enable_preprocessing": True
+        }
+        try:
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            audio_b64 = data["audios"][0]
+            audio_bytes = base64.b64decode(audio_b64)
+            with open(out_path, "wb") as f:
+                f.write(audio_bytes)
+            return out_path
+        except Exception as e:
+            # Fallback: write silence as empty wav so pipeline doesn't break
+            print(f"[TTS Warning] Sarvam API error for '{out_path}': {e}")
+            self._write_silent_wav(out_path, duration_sec=3)
+            return out_path
+
+    def _write_silent_wav(self, path: str, duration_sec: int = 3):
+        """Write a minimal silent WAV file as a fallback."""
+        import struct, wave
+        sample_rate = 22050
+        n_samples = sample_rate * duration_sec
+        with wave.open(path, 'w') as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(sample_rate)
+            wf.writeframes(struct.pack('<' + 'h' * n_samples, *([0] * n_samples)))
 
     def _run(self, json_script: str) -> str:
         try:
@@ -417,29 +462,31 @@ class TextToSpeechTool(BaseTool):
             data = json.loads(json_script)
             output_folder = os.path.abspath("output/audio")
             os.makedirs(output_folder, exist_ok=True)
-            
-            audio_files = []
-            
-            # Title Audio
+
+            # Build list of (text, filepath) pairs
+            tasks = []
             title_text = f"Welcome to this presentation on {data.get('title', 'the topic')}."
-            tts = gTTS(text=title_text, lang='en')
-            filename = os.path.join(output_folder, "audio_0.mp3")
-            tts.save(filename)
-            audio_files.append(filename)
-            
+            tasks.append((title_text, os.path.join(output_folder, "audio_0.wav")))
+
             for i, slide in enumerate(data.get("slides", [])):
                 text = slide.get("voiceover", "")
                 if not text:
                     text = f"Slide {i+1}: {slide.get('title', 'Next point')}."
-                
-                tts = gTTS(text=text, lang='en')
-                filename = os.path.join(output_folder, f"audio_{i+1}.mp3")
-                tts.save(filename)
-                audio_files.append(filename)
-            
-            return f"Audio files generated in {output_folder}"
+                tasks.append((text, os.path.join(output_folder, f"audio_{i+1}.wav")))
+
+            # Generate all audio files IN PARALLEL
+            print(f"  [TTS] Generating {len(tasks)} audio clips in parallel via Sarvam AI...")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(tasks), 6)) as executor:
+                futures = {executor.submit(self._synthesise_one, text, path): path
+                           for text, path in tasks}
+                for future in concurrent.futures.as_completed(futures):
+                    result = future.result()
+                    print(f"  [TTS] ✓ {os.path.basename(result)}")
+
+            return f"Audio files generated in {output_folder} (Sarvam AI bulbul:v2)"
         except Exception as e:
             return f"Error generating audio: {e}"
+
 
 class VideoCompilerTool(BaseTool):
     name: str = "Video Compiler"
@@ -451,23 +498,24 @@ class VideoCompilerTool(BaseTool):
             slides_dir = os.path.abspath("output/slides")
             audio_dir = os.path.abspath("output/audio")
             output_video = os.path.abspath("output/final_video.mp4")
-            
+
             slides = sorted([os.path.join(slides_dir, f) for f in os.listdir(slides_dir) if f.endswith(".jpg")])
-            audios = sorted([os.path.join(audio_dir, f) for f in os.listdir(audio_dir) if f.endswith(".mp3")])
-            
+            audios = sorted([os.path.join(audio_dir, f) for f in os.listdir(audio_dir) if f.endswith(".wav")])
+
             if len(slides) != len(audios):
                 return f"Error: Mismatch in slides ({len(slides)}) and audio files ({len(audios)})."
-            
+
             clips = []
             for slide_path, audio_path in zip(slides, audios):
                 audio_clip = AudioFileClip(audio_path)
                 slide_clip = ImageClip(slide_path).with_duration(audio_clip.duration)
                 slide_clip = slide_clip.with_audio(audio_clip)
                 clips.append(slide_clip)
-            
+
             final_clip = concatenate_videoclips(clips)
             final_clip.write_videofile(output_video, fps=24)
-            
+
             return f"Video created at {output_video}"
         except Exception as e:
             return f"Error compiling video: {e}"
+

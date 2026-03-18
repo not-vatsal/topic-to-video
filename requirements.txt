@@ -1,7 +1,7 @@
 requests
 python-pptx
-gTTS
 moviepy
 comtypes
 openai
 python-dotenv
+sarvamai

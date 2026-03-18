@@ -12,20 +12,11 @@ slide_to_image_tool = SlideToImageTool()
 tts_tool = TextToSpeechTool()
 video_tool = VideoCompilerTool()
 
-def create_agents():
+def create_agents(use_qa: bool = True):
     researcher = Agent(
         role='Topic Researcher',
         goal='Research the given topic thoroughly and provide structured, interesting facts.',
         backstory='You are an expert researcher who can find deep insights and organize them logically for presentations.',
-        tools=[search_tool],
-        llm=llm,
-        verbose=True
-    )
-    
-    qa_agent = Agent(
-        role='Quality Assurance Specialist',
-        goal='Verify the factual accuracy and credibility of research findings before presentation creation.',
-        backstory='You are a meticulous fact-checker with expertise in validating information against reliable sources. You ensure all claims are accurate and properly sourced.',
         tools=[search_tool],
         llm=llm,
         verbose=True
@@ -39,4 +30,15 @@ def create_agents():
         verbose=True
     )
 
-    return researcher, qa_agent, scriptwriter
+    if use_qa:
+        qa_agent = Agent(
+            role='Quality Assurance Specialist',
+            goal='Verify the factual accuracy and credibility of research findings before presentation creation.',
+            backstory='You are a meticulous fact-checker with expertise in validating information against reliable sources. You ensure all claims are accurate and properly sourced.',
+            tools=[search_tool],
+            llm=llm,
+            verbose=True
+        )
+        return researcher, qa_agent, scriptwriter
+
+    return researcher, None, scriptwriter

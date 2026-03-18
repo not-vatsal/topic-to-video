@@ -70,7 +70,8 @@ def main():
     # --- Step 3: Scriptwriting ---
     print("\n[Scriptwriter Agent] Writing script with tables...")
     script_prompt = f"""
-    Based on the following QA-verified research, create a JSON structure for a 5-slide presentation.
+    Based on the following QA-verified research, create a JSON structure for a 5-slide presentation about '{topic}'.
+    IMPORTANT: The presentation MUST be strictly about '{topic}'. Do NOT write about any other topic.
     Use tables when appropriate for comparisons, statistics, or structured data.
     
     Research:
